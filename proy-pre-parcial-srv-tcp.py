@@ -36,9 +36,12 @@ def manejar_cliente(conn, addr):
             # TO-DO 2: IMPLEMENTAR AQUÍ EL COMANDO 'STATS'
             # =========================================================
             elif comando == "STATS":
-                hilos_activos = threading.active_count()
+                # La función active_count() incluye al hilo principal del servidor.
+                # Para devolver el valor real de infraestructura restamos 1. 
+                clientes_activos = threading.active_count() -1
                 ruta_actual = os.getcwd()
-                respuesta = f"Hilos activos: {hilos_activos}\nDirectorio actual:{ruta_actual}"
+
+                respuesta = f"Hilos activos: {clientes_activos}\nDirectorio actual:{ruta_actual}"
             # =========================================================
 
             else:
@@ -46,16 +49,15 @@ def manejar_cliente(conn, addr):
 
             # Enviar la respuesta agregando el prompt del shell
             conn.send((respuesta + "\n> ").encode())
-
         
         # =========================================================
         # TO-DO 1: MEJORAR LA GESTIÓN DE EXCEPCIONES DE RED AQUÍ
         # =========================================================
-        except ConnectionResetError:
-            print(f"[ALERTA] Cliente {addr} desconectado abruptamente.")
+        except (socket.error, ConnectionResetError) as e:
+            print(f"[ALERTA] Cliente {addr} desconectado abruptamente. Motivo: {e}")
             break
         except Exception as e:
-            print(f"Error general con el cliente {addr}: {e}")
+            print(f"[ERROR SOFTWARE] Excepción interna en el hilo de {addr}: {e}")
             break
         # ==========================================================
 
@@ -80,15 +82,21 @@ def iniciar_servidor():
         # TO-DO 3: MODIFICAR ESTA LÓGICA PARA CONTROL DE SATURACIÓN
         # =========================================================
         # Contabilizar hilos activos (Nota: el hilo principal cuenta como 1)
+        # Recordar: active_count() incluye el hilo de escucha principal.
         if threading.active_count() <= MAX_CLIENTS:
             thread = threading.Thread(target=manejar_cliente, args=(conn, addr))
             thread.start()
-            print(f"[HILOS ACTIVOS] Clientes concurrentes: {threading.active_count() - 1}")
+            print(f"[HILOS ACTIVOS] Clientes concurrentes: {threading.active_count() -1 }")
         else:
-            # Actualmente los ignora... ¡Debes cambiar este comportamiento!
-            print(f"[RECHAZADO] Conexión desde {addr} ignorada por saturación.")
-            conn.send("[ERROR] Servidor saturado. Intente más tarde. \n".encode())
-            conn.close()
+            # Mecanismo de mitigación y protección de infraestructura
+            print(f"[RECHAZADO] Conexión desde {addr} ignorada por saturación. Limite máx: {MAX_CLIENTS}")
+            try:
+                # Se le notifica el estado al cliente antes de cortar la comunicación
+                conn.send("[ERROR] Servidor saturado. Intente más tarde. \n".encode())
+            except socket.error:
+                pass # Previene caídas si el cliente cerró el socket inmediatamente
+            finally:
+                conn.close() # Cerramos el File Descriptor inmediatamente sin crear hilos
             # =========================================================
 
 if __name__ == "__main__":
