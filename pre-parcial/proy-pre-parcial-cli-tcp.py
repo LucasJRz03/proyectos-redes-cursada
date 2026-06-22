@@ -1,10 +1,10 @@
+
 import socket 
 
 HOST = "127.0.0.1"
 PORT = 9090
 
 # Completar los campos vacios
-
 def iniciar_cliente(): 
     # 1. Instanciamos el socket TCP 
     # cliente = socket.socket(socket.AF_INET, socket.[ ___ 1 ___ ])
